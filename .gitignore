@@ -218,3 +218,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# TrustAdapt
+data/
+*.db
+*.pkl
+.env
+.venv/
