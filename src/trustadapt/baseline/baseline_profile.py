@@ -37,7 +37,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
-from schema import BASELINE_WINDOWS, IoTDeviceFeatureVector
+from trustadapt.features.schema import BASELINE_WINDOWS, IoTDeviceFeatureVector
 
 FEATURES: tuple[str, ...] = IoTDeviceFeatureVector.ML_FEATURES      # fixed column order, 12 values
 FLAG_FEATURES = ("traffic_spike_flag", "unusual_port_flag")
