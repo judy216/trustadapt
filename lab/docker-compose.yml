@@ -1,0 +1,107 @@
+# Isolated lab network for TrustAdapt (no internet access, nothing leaves the host).
+# Fixed MAC addresses = stable device identities (device_mac is the primary key, FR-01).
+# Bridge name is fixed (trustadapt0) so the capture script can sniff it.
+name: trustadapt
+
+x-ext: &ext                             # extra "internet" hosts, only contacted during the exfil attack
+  image: python:3.12-slim
+  command: ["python", "-m", "http.server", "8080"]
+  networks: [lab]
+
+networks:
+  lab:
+    driver: bridge
+    internal: true                       # isolated: no route to the internet / your home network
+    driver_opts:
+      com.docker.network.bridge.name: trustadapt0
+    ipam:
+      config:
+        - subnet: 10.77.0.0/24
+
+services:
+  broker:
+    image: eclipse-mosquitto:2
+    mac_address: "02:42:0a:4d:00:02"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      lab: { ipv4_address: 10.77.0.2 }
+
+  cloud:                                 # plain HTTP server: stands in for the vendor cloud
+    image: python:3.12-slim
+    mac_address: "02:42:0a:4d:00:64"
+    command: ["python", "-m", "http.server", "80"]
+    networks:
+      lab: { ipv4_address: 10.77.0.100 }
+
+  cam-01:
+    build: ./device
+    mac_address: "02:42:0a:4d:00:11"
+    environment: { DEVICE_NAME: cam-01, DEVICE_TYPE: camera, BROKER_HOST: broker, CLOUD_HOST: cloud }
+    depends_on: [broker, cloud]
+    networks:
+      lab: { ipv4_address: 10.77.0.11 }
+
+  therm-01:
+    build: ./device
+    mac_address: "02:42:0a:4d:00:12"
+    environment: { DEVICE_NAME: therm-01, DEVICE_TYPE: thermostat, BROKER_HOST: broker, CLOUD_HOST: cloud }
+    depends_on: [broker, cloud]
+    networks:
+      lab: { ipv4_address: 10.77.0.12 }
+
+  sensor-01:
+    build: ./device
+    mac_address: "02:42:0a:4d:00:13"
+    environment: { DEVICE_NAME: sensor-01, DEVICE_TYPE: sensor, BROKER_HOST: broker, CLOUD_HOST: cloud }
+    depends_on: [broker, cloud]
+    networks:
+      lab: { ipv4_address: 10.77.0.13 }
+
+  ext-01:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:97"
+    networks:
+      lab: { ipv4_address: 10.77.0.151 }
+
+  ext-02:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:98"
+    networks:
+      lab: { ipv4_address: 10.77.0.152 }
+
+  ext-03:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:99"
+    networks:
+      lab: { ipv4_address: 10.77.0.153 }
+
+  ext-04:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:9a"
+    networks:
+      lab: { ipv4_address: 10.77.0.154 }
+
+  ext-05:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:9b"
+    networks:
+      lab: { ipv4_address: 10.77.0.155 }
+
+  ext-06:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:9c"
+    networks:
+      lab: { ipv4_address: 10.77.0.156 }
+
+  ext-07:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:9d"
+    networks:
+      lab: { ipv4_address: 10.77.0.157 }
+
+  ext-08:
+    <<: *ext
+    mac_address: "02:42:0a:4d:00:9e"
+    networks:
+      lab: { ipv4_address: 10.77.0.158 }
