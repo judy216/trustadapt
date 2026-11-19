@@ -225,3 +225,8 @@ data/
 *.pkl
 .env
 .venv/
+
+# keep small processed feature files; raw captures stay out of git
+!data/
+data/raw/*
+!data/raw/.gitkeep

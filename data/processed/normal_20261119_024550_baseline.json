@@ -1,0 +1,119 @@
+{
+  "02:42:0a:4d:00:11": {
+    "complete": true,
+    "windows_used": 50,
+    "mean_packet_rate": 5.21,
+    "port_whitelist": [
+      80,
+      1883
+    ],
+    "known_destinations": [
+      "10.77.0.100"
+    ],
+    "ml_mean": {
+      "packet_rate_10s": 5.21,
+      "bytes_sent_rate": 2083.7140000000004,
+      "connection_count": 3.18,
+      "new_destination_count": 0.02,
+      "activity_time": 3.4,
+      "mean_packet_size": 467.41715990005207,
+      "std_packet_size": 1385.9316697254865,
+      "mean_inter_arrival": 136.55742581400324,
+      "std_inter_arrival": 633.879569014803,
+      "traffic_spike_flag": 0.0,
+      "unusual_port_flag": 0.0,
+      "failed_conn_count": 0.0
+    },
+    "ml_std": {
+      "packet_rate_10s": 0.6416385275215323,
+      "bytes_sent_rate": 312.50380478323785,
+      "connection_count": 0.38418745424597095,
+      "new_destination_count": 0.13999999999999999,
+      "activity_time": 0.565685424949238,
+      "mean_packet_size": 33.781012836814455,
+      "std_packet_size": 115.30031612930695,
+      "mean_inter_arrival": 14.3905407256745,
+      "std_inter_arrival": 70.94394548939728,
+      "traffic_spike_flag": 0.0,
+      "unusual_port_flag": 0.0,
+      "failed_conn_count": 0.0
+    }
+  },
+  "02:42:0a:4d:00:12": {
+    "complete": true,
+    "windows_used": 50,
+    "mean_packet_rate": 0.878,
+    "port_whitelist": [
+      80,
+      1883
+    ],
+    "known_destinations": [
+      "10.77.0.100"
+    ],
+    "ml_mean": {
+      "packet_rate_10s": 0.878,
+      "bytes_sent_rate": 46.164000000000016,
+      "connection_count": 0.3,
+      "new_destination_count": 0.02,
+      "activity_time": 2.22,
+      "mean_packet_size": 109.4932619047619,
+      "std_packet_size": 85.1092761155031,
+      "mean_inter_arrival": 1001.1185398110661,
+      "std_inter_arrival": 1716.4961498526893,
+      "traffic_spike_flag": 0.0,
+      "unusual_port_flag": 0.0,
+      "failed_conn_count": 0.0
+    },
+    "ml_std": {
+      "packet_rate_10s": 0.5752529878236183,
+      "bytes_sent_rate": 24.532849487982435,
+      "connection_count": 0.458257569495584,
+      "new_destination_count": 0.13999999999999999,
+      "activity_time": 0.54,
+      "mean_packet_size": 23.524286983791985,
+      "std_packet_size": 79.42355141522471,
+      "mean_inter_arrival": 642.679238690152,
+      "std_inter_arrival": 705.6512654637262,
+      "traffic_spike_flag": 0.0,
+      "unusual_port_flag": 0.0,
+      "failed_conn_count": 0.0
+    }
+  },
+  "02:42:0a:4d:00:13": {
+    "complete": true,
+    "windows_used": 50,
+    "mean_packet_rate": 0.62,
+    "port_whitelist": [
+      1883
+    ],
+    "known_destinations": [],
+    "ml_mean": {
+      "packet_rate_10s": 0.62,
+      "bytes_sent_rate": 33.94,
+      "connection_count": 0.0,
+      "new_destination_count": 0.0,
+      "activity_time": 2.68,
+      "mean_packet_size": 89.53,
+      "std_packet_size": 26.47997557331524,
+      "mean_inter_arrival": 1256.4849523809526,
+      "std_inter_arrival": 1780.696959107675,
+      "traffic_spike_flag": 0.0,
+      "unusual_port_flag": 0.0,
+      "failed_conn_count": 0.0
+    },
+    "ml_std": {
+      "packet_rate_10s": 0.21633307652783937,
+      "bytes_sent_rate": 8.88760935235117,
+      "connection_count": 0.0,
+      "new_destination_count": 0.0,
+      "activity_time": 0.705407683541936,
+      "mean_packet_size": 5.8798022925945395,
+      "std_packet_size": 2.585649880261177,
+      "mean_inter_arrival": 355.1224149509981,
+      "std_inter_arrival": 321.6320114529485,
+      "traffic_spike_flag": 0.0,
+      "unusual_port_flag": 0.0,
+      "failed_conn_count": 0.0
+    }
+  }
+}
