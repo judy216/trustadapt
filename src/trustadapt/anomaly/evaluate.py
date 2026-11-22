@@ -7,6 +7,12 @@ Baselines are built with baseline_profile.build_baseline() on the first 50 windo
 NORMAL capture. Every window of both captures is then scored by detector.py and fed to the real
 TrustScoreEngine (start score 100, as in the Week 9 check).
 
+Model comparison (planned in the Week 8 report, Section 5): the same rows are also scored by
+  * Isolation Forest alone (the calibrated profile model, no z-score part),
+  * One-Class SVM alone (standardised features, RBF kernel, nu = 0.05), with the same out-of-fold
+    99th-percentile threshold as baseline_profile.py, trained on the same 50 windows.
+One-Class SVM is a comparison only: the deciding model stays the Isolation Forest of baseline_profile.py.
+
 Ground truth for the attack capture: a window is an attack window when a flag is set or failed_conn_count > 0
 (the same rule as the dashboard alerts).
 """
@@ -40,6 +46,24 @@ def week9_severity(normal_rows: pd.DataFrame, rows: pd.DataFrame) -> np.ndarray:
     return np.clip((hi - m.decision_function(rows[list(FEATURES)].to_numpy(float))) / (hi - lo), 0, 1)
 
 
+def ocsvm_anomalous(normal_rows: pd.DataFrame, rows: pd.DataFrame, random_state: int = 42) -> np.ndarray:
+    """One-Class SVM comparison: True where the window is beyond the out-of-fold threshold."""
+    from sklearn.model_selection import KFold
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.svm import OneClassSVM
+
+    def model():
+        return make_pipeline(StandardScaler(), OneClassSVM(nu=0.05, gamma="scale"))
+
+    X = normal_rows.sort_values("window_start").head(50)[list(FEATURES)].to_numpy(float)
+    held = np.empty(len(X))
+    for train, test in KFold(5, shuffle=True, random_state=random_state).split(X):
+        held[test] = model().fit(X[train]).decision_function(X[test])
+    threshold = np.quantile(held, 0.01)                      # same rule as baseline_profile.py
+    return model().fit(X).decision_function(rows[list(FEATURES)].to_numpy(float)) < threshold
+
+
 def run(normal: pd.DataFrame, attack: pd.DataFrame):
     reg, refused = AnomalyDetectorRegistry(), {}
     for mac, g in normal.groupby("device_mac", sort=True):
@@ -58,6 +82,8 @@ def run(normal: pd.DataFrame, attack: pd.DataFrame):
             sc["truth"] = truth(rows).to_numpy()
             sc["in_baseline"] = (np.arange(len(sc)) < 50) if scen == "normal" else False
             sc["week9_anomalous"] = week9_severity(normal[normal.device_mac == mac], rows) > 0.3
+            sc["iforest_only"] = sc.a_iforest > 0.3
+            sc["ocsvm_only"] = ocsvm_anomalous(normal[normal.device_mac == mac], rows)
             engine, base = TrustScoreEngine(mac, score=100.0), det.engine_baseline()
             recs = [engine.update(dict(zip(FEATURES, r[list(FEATURES)].astype(float))), base, s)
                     for (_, r), s in zip(rows.iterrows(), sc.severity)]
@@ -80,7 +106,10 @@ def summary(scored: dict, names: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
         "false alarms, attack capture": f"{int((a[col] & ~a.truth).sum())}/{int((~a.truth).sum())}",
         "false alarms, normal hold-out": f"{int(held[col].sum())}/{len(held)}",
         "false alarms, whole normal capture": f"{int(n[col].sum())}/{len(n)}",
-    } for label, col in (("Week 9 (old)", "week9_anomalous"), ("Week 10 (calibrated)", "anomalous"))])
+    } for label, col in (("Week 9 (old)", "week9_anomalous"),
+                         ("Isolation Forest only (calibrated)", "iforest_only"),
+                         ("One-Class SVM only (calibrated)", "ocsvm_only"),
+                         ("Week 10 (IF + z-score, deciding)", "anomalous"))])
     trust = pd.DataFrame([{
         "scenario": scen, "device": names.get(mac, mac),
         "anomalous windows": f"{int(g.anomalous.sum())}/{len(g)}",

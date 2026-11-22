@@ -90,3 +90,11 @@ def test_std_floor_below_real_std():
         i = FEATURES.index("packet_rate_10s")
         assert np.isclose(p.std[i], max(real[i], 0.1, 0.05 * abs(p.mean[i])))
         assert p.std[i] < 1.0
+
+
+def test_model_comparison_includes_one_class_svm(result):
+    from trustadapt.anomaly.evaluate import summary
+    methods, _ = summary(result[2], {})
+    assert any("One-Class SVM" in d for d in methods.detector)
+    a = result[2]["attack"]
+    assert (a.ocsvm_only & a.truth).sum() >= 20              # the comparison model also finds the attack
