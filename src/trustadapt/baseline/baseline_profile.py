@@ -4,12 +4,17 @@ From the first 50 feature vectors (10 s windows, about 8 minutes) of a device th
   * the mean and standard deviation of each of the 12 ML features (std has a floor, see below),
   * one Isolation Forest trained on those same windows,
   * the Isolation Forest's decision_function on those windows: its minimum, 1st / 5th / 50th
-    percentile and maximum, which the anomaly-detection step (FR-05) uses to turn a score into a
-    severity A between 0 and 1.
+    percentile and maximum (kept for reference and SHAP),
+  * the thresholds the anomaly-detection step (FR-05) uses (Week 10): `if_threshold` and `z_threshold`,
+    learned OUT OF FOLD. The 50 windows are split into 5 folds; a model trained on the other 4 folds
+    scores each held-out fold, so the thresholds describe a normal window the model has NOT seen.
+    (Week 9 scaled A from the model's scores on its own training windows, which put a typical normal
+    window right at the anomaly threshold.)
 
-Std floors (from the Trust Score design): 1.0 for numeric features and 0.2 for the two flags.
-Without a floor, a feature that never changes in the baseline (for example new_destination_count = 0)
-has std 0 and its z-score explodes the first time it moves.
+Std floors (Week 10): max(ABS_FLOOR[feature], REL_FLOOR x |mean|). The old flat 1.0 floor was larger
+than the real std of packet_rate_10s, activity_time, connection_count and new_destination_count on the
+lab captures, so those features lost sensitivity. Without any floor, a feature that never changes in the
+baseline (for example new_destination_count = 0) has std 0 and its z-score explodes the first time it moves.
 
 Two checks protect the baseline from learning attack traffic (FR-11, baseline poisoning):
   1. Flag check. Both flags are 0 during LEARNING by definition (schema.py). A flag set inside the
@@ -36,16 +41,38 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
+from sklearn.model_selection import KFold
 
 from trustadapt.features.schema import BASELINE_WINDOWS, IoTDeviceFeatureVector
 
 FEATURES: tuple[str, ...] = IoTDeviceFeatureVector.ML_FEATURES      # fixed column order, 12 values
 FLAG_FEATURES = ("traffic_spike_flag", "unusual_port_flag")
-STD_FLOOR_NUMERIC = 1.0        # smallest std allowed for normal numbers (avoids dividing by ~0)
-STD_FLOOR_FLAG = 0.2
-OUTLIER_FENCE_K = 5.0          # a window is suspect beyond Q3 + k*spread or Q1 - k*spread (spread >= std floor)
+# Smallest std allowed per feature (units as in DATA_DICTIONARY.md). Each value is below the real baseline std
+# measured on the 2026-11-19 lab captures (Week 9 report 4.2), so no feature loses sensitivity.
+ABS_FLOOR = {
+    "packet_rate_10s": 0.1,         # pkt/s   (real std 0.22-0.64)
+    "bytes_sent_rate": 10.0,        # B/s
+    "connection_count": 0.5,        # count   (real std 0-0.46)
+    "new_destination_count": 0.5,   # count   (real std 0-0.14)
+    "activity_time": 0.25,          # s       (real std 0.54-0.71)
+    "mean_packet_size": 5.0,        # B
+    "std_packet_size": 5.0,         # B
+    "mean_inter_arrival": 5.0,      # ms
+    "std_inter_arrival": 5.0,       # ms
+    "traffic_spike_flag": 0.2,      # flag    (as in the Week 8 design)
+    "unusual_port_flag": 0.2,       # flag
+    "failed_conn_count": 0.5,       # count
+}
+REL_FLOOR = 0.05                    # std is also at least 5 % of |mean|
+FENCE_SPREAD_FLOOR = 1.0            # data check only (unchanged from Week 9): smallest spread for the Tukey fences
+FENCE_SPREAD_FLOOR_FLAG = 0.2
+OUTLIER_FENCE_K = 5.0          # a window is suspect beyond Q3 + k*spread or Q1 - k*spread
 N_ESTIMATORS = 100
+MAX_SAMPLES = 32               # fixed sub-sample: fold models (40 windows) and the final model (50) share one score scale
 RANDOM_STATE = 42
+CV_FOLDS = 5                   # out-of-fold calibration
+THRESHOLD_QUANTILE = 0.99      # threshold = this quantile of the held-out baseline windows
+Z_ALARM_MIN = 4.0              # the z threshold is never below this max|z|
 
 
 class BaselineNotReady(ValueError):
@@ -61,9 +88,44 @@ def baseline_ready(n_windows_seen: int) -> bool:
     return n_windows_seen >= BASELINE_WINDOWS
 
 
-def _std_floor() -> np.ndarray:
-    # One floor value per feature: 0.2 for the flags, 1.0 for everything else.
-    return np.array([STD_FLOOR_FLAG if f in FLAG_FEATURES else STD_FLOOR_NUMERIC for f in FEATURES])
+def _std_floor(mean: np.ndarray) -> np.ndarray:
+    """One floor value per feature: max(absolute floor, 5 % of |mean|)."""
+    return np.maximum(np.array([ABS_FLOOR[f] for f in FEATURES]), REL_FLOOR * np.abs(mean))
+
+
+def _fence_floor() -> np.ndarray:
+    # Data check only: 0.2 for the flags, 1.0 for everything else (same behaviour as Week 9).
+    return np.array([FENCE_SPREAD_FLOOR_FLAG if f in FLAG_FEATURES else FENCE_SPREAD_FLOOR for f in FEATURES])
+
+
+def _new_model(random_state: int = RANDOM_STATE) -> IsolationForest:
+    return IsolationForest(n_estimators=N_ESTIMATORS, max_samples=MAX_SAMPLES, random_state=random_state)
+
+
+def _moments(X: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    mean = X.mean(axis=0)
+    return mean, np.maximum(X.std(axis=0, ddof=0), _std_floor(mean))
+
+
+def _calibrate(X: np.ndarray, random_state: int = RANDOM_STATE) -> dict:
+    """Out-of-fold thresholds: how a normal window the model has not seen scores.
+
+    Returns if_threshold (decision_function; a window BELOW it is unusual for the model), if_spread
+    (distance from the median held-out window to that threshold, used to scale A) and z_threshold
+    (largest |z| a held-out normal window reached, never below Z_ALARM_MIN).
+    """
+    oof_if = np.empty(len(X))
+    oof_z = np.empty(len(X))
+    for train, held in KFold(CV_FOLDS, shuffle=True, random_state=random_state).split(X):
+        oof_if[held] = _new_model(random_state).fit(X[train]).decision_function(X[held])
+        mu, sd = _moments(X[train])
+        oof_z[held] = np.abs((X[held] - mu) / sd).max(axis=1)
+    if_threshold = float(np.quantile(oof_if, 1 - THRESHOLD_QUANTILE))     # low tail: lower = more anomalous
+    return {
+        "if_threshold": if_threshold,
+        "if_spread": float(max(np.median(oof_if) - if_threshold, 1e-3)),
+        "z_threshold": float(max(Z_ALARM_MIN, np.quantile(oof_z, THRESHOLD_QUANTILE))),
+    }
 
 
 def _suspect_mask(X: np.ndarray) -> np.ndarray:
@@ -75,7 +137,7 @@ def _suspect_mask(X: np.ndarray) -> np.ndarray:
     """
     # Q1 and Q3 = the values 25% and 75% of the windows fall below, for each feature (column).
     q1, q3 = np.percentile(X, 25, axis=0), np.percentile(X, 75, axis=0)
-    spread = np.maximum(q3 - q1, _std_floor()) # typical variation of each feature, never below the floor
+    spread = np.maximum(q3 - q1, _fence_floor())  # typical variation of each feature, never below the floor
     # True where a value is far above or far below the normal range of its column.
     return (X > q3 + OUTLIER_FENCE_K * spread) | (X < q1 - OUTLIER_FENCE_K * spread)
 
@@ -91,6 +153,9 @@ class BaselineProfile:             # everything we remember about one device's n
     score_p05: float               # 5% score below this: use it as the "edge of normal"
     score_p50: float               # the median baseline score
     score_max: float               # the most normal-looking baseline window
+    if_threshold: float            # out of fold: decision_function below this = unusual for the model (FR-05)
+    if_spread: float               # median held-out score minus if_threshold: scales the severity
+    z_threshold: float             # out of fold: max|z| above this = unusual on some feature (FR-05)
     trained_at: str                # UTC, ISO 8601
     model: IsolationForest         # the trained model itself
     suspect_windows: list = field(default_factory=list)   # window_start of windows the data check flagged
@@ -114,10 +179,12 @@ class BaselineProfile:             # everything we remember about one device's n
             "mean": self.mean.tolist(), "std": self.std.tolist(), "n_windows": self.n_windows,
             "score_min": self.score_min, "score_p01": self.score_p01, "score_p05": self.score_p05,
             "score_p50": self.score_p50, "score_max": self.score_max,
+            "if_threshold": self.if_threshold, "if_spread": self.if_spread, "z_threshold": self.z_threshold,
             "trained_at": self.trained_at, "suspect_windows": [float(w) for w in self.suspect_windows],
             "model_file": f"{stem}.joblib",
-            "params": {"n_estimators": N_ESTIMATORS, "random_state": RANDOM_STATE,
-                       "std_floor_numeric": STD_FLOOR_NUMERIC, "std_floor_flag": STD_FLOOR_FLAG,
+            "params": {"n_estimators": N_ESTIMATORS, "max_samples": MAX_SAMPLES, "random_state": RANDOM_STATE,
+                       "abs_floor": ABS_FLOOR, "rel_floor": REL_FLOOR, "cv_folds": CV_FOLDS,
+                       "threshold_quantile": THRESHOLD_QUANTILE, "z_alarm_min": Z_ALARM_MIN,
                        "outlier_fence_k": OUTLIER_FENCE_K},
         }
         (d / f"{stem}.json").write_text(json.dumps(meta, indent=2))  # write the readable file
@@ -132,12 +199,13 @@ class BaselineProfile:             # everything we remember about one device's n
         meta = json.loads((d / f"{stem}.json").read_text())  # read the readable part
         if tuple(meta["features"]) != FEATURES:    # if saved with a different feature order -> unsafe to use
             raise ValueError("saved baseline uses a different feature order; rebuild it")
-        if "score_p05" not in meta:    # if file made by an older version of this code
-            raise ValueError("saved baseline has no score percentiles (older format); rebuild it")
+        if "if_threshold" not in meta:    # if file made by an older version of this code (before Week 10)
+            raise ValueError("saved baseline has no out-of-fold thresholds (older format); rebuild it")
         # Rebuild the profile object from the saved numbers and the saved model.
         return cls(device_mac=meta["device_mac"], mean=np.array(meta["mean"]), std=np.array(meta["std"]),
                    n_windows=meta["n_windows"], score_min=meta["score_min"], score_p01=meta["score_p01"],
                    score_p05=meta["score_p05"], score_p50=meta["score_p50"], score_max=meta["score_max"],
+                   if_threshold=meta["if_threshold"], if_spread=meta["if_spread"], z_threshold=meta["z_threshold"],
                    trained_at=meta["trained_at"], model=joblib.load(d / meta["model_file"]),
                    suspect_windows=meta.get("suspect_windows", []))
 
@@ -181,17 +249,19 @@ def build_baseline(device_mac: str, vectors: pd.DataFrame, n_windows: int = BASE
             f"normal, rebuild with allow_suspect=True")
 
     # Step 5: the average and normal variation of each feature (std is never below its floor).
-    mean = X.mean(axis=0)
-    std = np.maximum(X.std(axis=0, ddof=0), _std_floor())
+    mean, std = _moments(X)
 
-    # Step 6: train the Isolation Forest on the same 50 windows.
-    model = IsolationForest(n_estimators=N_ESTIMATORS, random_state=random_state).fit(X)
-    scores = model.decision_function(X)           # higher = more normal
-    p01, p05, p50 = np.percentile(scores, [1, 5, 50])     # reference points for "how normal is normal"
-    # Step 7: pack everything into one BaselineProfile.
+    # Step 6: out-of-fold thresholds (models trained on 4/5 of the windows score the other 1/5).
+    calib = _calibrate(X, random_state)
+
+    # Step 7: train the final Isolation Forest on all 50 windows.
+    model = _new_model(random_state).fit(X)
+    scores = model.decision_function(X)           # higher = more normal (in-sample: reference only)
+    p01, p05, p50 = np.percentile(scores, [1, 5, 50])
+    # Step 8: pack everything into one BaselineProfile.
     return BaselineProfile(device_mac=device_mac, mean=mean, std=std, n_windows=len(rows),
                            score_min=float(scores.min()), score_p01=float(p01), score_p05=float(p05),
-                           score_p50=float(p50), score_max=float(scores.max()),
+                           score_p50=float(p50), score_max=float(scores.max()), **calib,
                            trained_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                            model=model, suspect_windows=[float(w) for w in suspect])
 
