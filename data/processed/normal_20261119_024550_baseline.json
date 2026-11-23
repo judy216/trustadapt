@@ -2,38 +2,41 @@
   "02:42:0a:4d:00:11": {
     "complete": true,
     "windows_used": 50,
-    "mean_packet_rate": 5.21,
+    "mean_packet_rate": 6.194,
+    "std_packet_rate": 0.7754766276297436,
+    "spike_threshold": 18.582,
     "port_whitelist": [
       80,
       1883
     ],
     "known_destinations": [
-      "10.77.0.100"
+      "10.77.0.100",
+      "10.77.0.2"
     ],
     "ml_mean": {
-      "packet_rate_10s": 5.21,
-      "bytes_sent_rate": 2083.7140000000004,
+      "packet_rate_10s": 6.194,
+      "bytes_sent_rate": 2148.6580000000004,
       "connection_count": 3.18,
       "new_destination_count": 0.02,
       "activity_time": 3.4,
-      "mean_packet_size": 467.41715990005207,
-      "std_packet_size": 1385.9316697254865,
-      "mean_inter_arrival": 136.55742581400324,
-      "std_inter_arrival": 633.879569014803,
+      "mean_packet_size": 403.24433032365175,
+      "std_packet_size": 556.1852879184108,
+      "mean_inter_arrival": 114.55054382022689,
+      "std_inter_arrival": 582.6874446123156,
       "traffic_spike_flag": 0.0,
       "unusual_port_flag": 0.0,
       "failed_conn_count": 0.0
     },
     "ml_std": {
-      "packet_rate_10s": 0.6416385275215323,
-      "bytes_sent_rate": 312.50380478323785,
+      "packet_rate_10s": 0.7754766276297436,
+      "bytes_sent_rate": 323.7865173783491,
       "connection_count": 0.38418745424597095,
       "new_destination_count": 0.13999999999999999,
       "activity_time": 0.565685424949238,
-      "mean_packet_size": 33.781012836814455,
-      "std_packet_size": 115.30031612930695,
-      "mean_inter_arrival": 14.3905407256745,
-      "std_inter_arrival": 70.94394548939728,
+      "mean_packet_size": 21.982430155103586,
+      "std_packet_size": 14.740836318593754,
+      "mean_inter_arrival": 12.267472317444145,
+      "std_inter_arrival": 65.37919371889119,
       "traffic_spike_flag": 0.0,
       "unusual_port_flag": 0.0,
       "failed_conn_count": 0.0
@@ -43,12 +46,15 @@
     "complete": true,
     "windows_used": 50,
     "mean_packet_rate": 0.878,
+    "std_packet_rate": 0.5752529878236183,
+    "spike_threshold": 2.634,
     "port_whitelist": [
       80,
       1883
     ],
     "known_destinations": [
-      "10.77.0.100"
+      "10.77.0.100",
+      "10.77.0.2"
     ],
     "ml_mean": {
       "packet_rate_10s": 0.878,
@@ -83,10 +89,14 @@
     "complete": true,
     "windows_used": 50,
     "mean_packet_rate": 0.62,
+    "std_packet_rate": 0.21633307652783937,
+    "spike_threshold": 1.8599999999999999,
     "port_whitelist": [
       1883
     ],
-    "known_destinations": [],
+    "known_destinations": [
+      "10.77.0.2"
+    ],
     "ml_mean": {
       "packet_rate_10s": 0.62,
       "bytes_sent_rate": 33.94,
