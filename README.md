@@ -88,3 +88,8 @@ Python 3.12 or later is required.
 
 \- Datasets, pcap files and databases are never committed.
 
+
+## Branching rules
+- Never push directly to main.
+- Branch name: feature/<module>-<task>, fix/<module>-<task>, docs/<topic>.
+- Open a Pull Request and get one review before merging.
