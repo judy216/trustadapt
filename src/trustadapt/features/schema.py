@@ -11,7 +11,8 @@ from enum import Enum
 WINDOW_S = 10                 # primary window length (seconds)
 FAILED_CONN_WINDOW_S = 60     # extended window for failed_conn_count
 BASELINE_WINDOWS = 50         # FR-04: 50 windows (~8 min) learning period
-SPIKE_FACTOR = 3.0            # traffic_spike_flag: rate > 3x baseline mean
+SPIKE_FACTOR = 3.0            # traffic_spike_flag: rate > 3x baseline mean ...
+SPIKE_STD_FACTOR = 3.0        # ... and also > baseline mean + 3 x baseline std (keeps sparse devices from false alarms)
 
 
 class TransportProtocol(str, Enum):
