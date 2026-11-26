@@ -21,8 +21,11 @@ GAMMA = 1.5                   # sensitivity exponent
 ANOMALY_THRESHOLD = 0.3       # A above this: window counts as anomalous
 RECOVERY_RATE = 2.0           # points regained per normal window
 Z_DEVIATION_THRESHOLD = 2.0   # |z| >= this: feature is blamed
-MIN_STD = 1.0                 # std floor for numeric features
-MIN_STD_FLAG = 0.2            # std floor for the two 0/1 flags
+# Std floors (Week 10): the per-feature floors of baseline/baseline_profile.py, so the engine, the detector
+# and the dashboard compute the same z-scores. A baseline built there is already floored; the floor here
+# only protects a baseline that comes from somewhere else.
+from trustadapt.baseline.baseline_profile import ABS_FLOOR  # noqa: E402
+MIN_STD_FLAG = ABS_FLOOR["traffic_spike_flag"]   # 0.2, kept for older imports
 LEARNING_INITIAL_SCORE = 65.0  # fixed score while the 50-window baseline is built
 
 FLAG_FIELDS = ("traffic_spike_flag", "unusual_port_flag")
@@ -55,8 +58,8 @@ class TrustScoreEngine:
                  baseline: Dict[str, Tuple[float, float]]) -> Dict[str, float]:
         z = {}
         for name, value in features.items():
-            mean, std = baseline.get(name, (value, MIN_STD))
-            std = max(std, MIN_STD_FLAG if name in FLAG_FIELDS else MIN_STD)
+            mean, std = baseline.get(name, (value, ABS_FLOOR[name]))
+            std = max(std, ABS_FLOOR[name])
             z[name] = (value - mean) / std
         return z
 
