@@ -1,6 +1,7 @@
 """Dashboard view of the FR-03 data contract.
 
-Column names, ML order and std floors come from the team's own modules (features.schema, trust_score.engine),
+Column names, ML order and std floors come from the team's own modules (features.schema, trust_score.engine,
+baseline.baseline_profile),
 so the dashboard always matches them; this file only adds the UI labels and units.
 """
 from __future__ import annotations
@@ -8,7 +9,8 @@ from __future__ import annotations
 from dataclasses import fields
 
 from trustadapt.features.schema import IoTDeviceFeatureVector
-from trustadapt.trust_score.engine import FLAG_FIELDS, MIN_STD, MIN_STD_FLAG, TRUST_LEVELS  # noqa: F401
+from trustadapt.baseline.baseline_profile import ABS_FLOOR
+from trustadapt.trust_score.engine import FLAG_FIELDS, TRUST_LEVELS  # noqa: F401
 
 FEATURE_COLUMNS = [f.name for f in fields(IoTDeviceFeatureVector)]   # window_start + 19 fields
 ML_FEATURES = IoTDeviceFeatureVector.ML_FEATURES
@@ -18,8 +20,8 @@ DISPLAY_TZ = "Asia/Riyadh"
 
 
 def std_floor(feature: str) -> float:
-    """Same floor as TrustScoreEngine.z_scores, so dashboard z-scores match the Trust Score."""
-    return MIN_STD_FLAG if feature in FLAG_FIELDS else MIN_STD
+    """Same per-feature floor as TrustScoreEngine.z_scores (ABS_FLOOR, Week 10), so dashboard z-scores match the Trust Score."""
+    return ABS_FLOOR[feature]
 
 
 # Human-readable labels + units shown in the UI (definitions: Student 1 DATA_DICTIONARY.md)
