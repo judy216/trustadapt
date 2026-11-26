@@ -1,0 +1,4 @@
+mac,name,type
+02:42:0a:4d:00:11,cam-01,camera
+02:42:0a:4d:00:12,therm-01,thermostat
+02:42:0a:4d:00:13,sensor-01,sensor
