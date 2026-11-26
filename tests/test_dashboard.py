@@ -57,4 +57,6 @@ def test_contract_follows_team_modules():
     assert ML_FEATURES == ENGINE_ML
     sample = pd.read_csv(SAMPLE_DIR / "synthetic_normal_features.csv", nrows=1)
     assert list(sample.columns) == FEATURE_COLUMNS
-    assert std_floor("packet_rate_10s") == 1.0 and std_floor("traffic_spike_flag") == 0.2
+    from trustadapt.baseline.baseline_profile import ABS_FLOOR
+    assert all(std_floor(f) == ABS_FLOOR[f] for f in ML_FEATURES)          # same floors as engine.py
+    assert std_floor("packet_rate_10s") == 0.1 and std_floor("traffic_spike_flag") == 0.2
